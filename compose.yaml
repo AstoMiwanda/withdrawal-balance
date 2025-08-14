@@ -1,0 +1,30 @@
+version: "3.7"
+services:
+  rest:
+    image: withdrawal-balance
+    container_name: rest_api
+    ports:
+      - 9090:9090
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - ./config.json:/app/config.json
+
+  mysql:
+    image: mysql:8.3
+    container_name: withdrawal_balance_mysql
+    command: mysqld --user=root
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+    ports:
+      - 3306:3306
+    environment:
+      - MYSQL_DATABASE=wallet
+      - MYSQL_USER=user
+      - MYSQL_PASSWORD=password
+      - MYSQL_ROOT_PASSWORD=root
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
