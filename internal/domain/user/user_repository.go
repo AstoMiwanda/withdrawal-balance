@@ -53,7 +53,7 @@ func (m *Repository) fetch(ctx context.Context, query string, args ...interface{
 }
 
 func (m *Repository) Fetch(ctx context.Context) (res []model.User, err error) {
-	query := squirrel.Select(`user_id, name, phone`).
+	query := squirrel.Select(`id, name, phone`).
 		From(`users`)
 	queryStr, args, err := query.ToSql()
 	res, err = m.fetch(ctx, queryStr, args...)
@@ -64,12 +64,12 @@ func (m *Repository) Fetch(ctx context.Context) (res []model.User, err error) {
 	return
 }
 func (m *Repository) GetByID(ctx context.Context, id int64) (res model.User, err error) {
-	query := squirrel.Select(`user_id, name, phone`).
+	query := squirrel.Select(`id, name, phone`).
 		From(`users`).
-		Where(squirrel.Eq{"user_id": id})
+		Where(squirrel.Eq{"id": id})
 	queryStr, args, err := query.ToSql()
 
-	list, err := m.fetch(ctx, queryStr, args)
+	list, err := m.fetch(ctx, queryStr, args...)
 	if err != nil {
 		return model.User{}, err
 	}
@@ -111,7 +111,7 @@ func (m *Repository) Store(ctx context.Context, a *model.User) (err error) {
 
 func (m *Repository) Delete(ctx context.Context, id int64) (err error) {
 	query := squirrel.Delete("users").
-		Where(squirrel.Eq{"user_id": id})
+		Where(squirrel.Eq{"id": id})
 	queryStr, args, err := query.ToSql()
 	if err != nil {
 		return

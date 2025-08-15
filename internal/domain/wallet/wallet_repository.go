@@ -72,7 +72,7 @@ func (m *Repository) GetByID(ctx context.Context, id int64) (res model.Wallet, e
 		Where(squirrel.Eq{"id": id})
 	queryStr, args, err := query.ToSql()
 
-	list, err := m.fetch(ctx, queryStr, args)
+	list, err := m.fetch(ctx, queryStr, args...)
 	if err != nil {
 		return model.Wallet{}, err
 	}

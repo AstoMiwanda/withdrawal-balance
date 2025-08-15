@@ -3,6 +3,9 @@ package wallet
 import (
 	"context"
 	"errors"
+	"time"
+	"withdrawal-balance/internal/constant"
+	"withdrawal-balance/pkg"
 
 	"withdrawal-balance/model"
 
@@ -65,8 +68,11 @@ func (s *Service) Delete(ctx context.Context, id int64) (err error) {
 	return s.walletRepo.Delete(ctx, id)
 }
 
-func (s *Service) UpdateBalance(ctx context.Context, req *model.Wallet, transactionAmount float64) (err error) {
-	wallet, err := s.walletRepo.GetByID(ctx, req.ID)
+func (s *Service) UpdateBalance(ctx context.Context, req *UpdateBalanceRequest) (err error) {
+	if req == nil {
+		return model.ErrBadParamInput
+	}
+	wallet, err := s.walletRepo.GetByID(ctx, req.WalletID)
 	if err != nil {
 		logrus.Error(err)
 		return errors.New("wallet not found")
@@ -75,6 +81,16 @@ func (s *Service) UpdateBalance(ctx context.Context, req *model.Wallet, transact
 		return errors.New("invalid wallet")
 	}
 
-	wallet.Balance += transactionAmount
-	return s.walletRepo.Update(ctx, req)
+	if req.Type == constant.WithdrawTransactionTypeWallet {
+		req.Amount = pkg.NegativeOf(req.Amount)
+	}
+	wallet.Balance += req.Amount
+
+	payloadUpdate := &model.Wallet{
+		ID:        req.WalletID,
+		UserID:    req.UserID,
+		Balance:   wallet.Balance,
+		UpdatedAt: pkg.PointerTime(time.Now()),
+	}
+	return s.walletRepo.Update(ctx, payloadUpdate)
 }
