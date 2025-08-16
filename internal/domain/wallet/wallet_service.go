@@ -94,3 +94,26 @@ func (s *Service) UpdateBalance(ctx context.Context, req *UpdateBalanceRequest) 
 	}
 	return s.walletRepo.Update(ctx, payloadUpdate)
 }
+
+func (s *Service) InquiryBalance(ctx context.Context, req *InquiryBalanceRequest) (result InquiryBalanceResponse, err error) {
+	if req == nil {
+		return result, model.ErrBadParamInput
+	}
+
+	dataWallet, err := s.walletRepo.GetByID(ctx, req.WalletId)
+	if err != nil {
+		logrus.Error(err)
+		return result, errors.New("wallet not found")
+	}
+
+	if dataWallet.UserID != req.UserId {
+		return result, errors.New("invalid wallet")
+	}
+
+	result = InquiryBalanceResponse{
+		UserId:   dataWallet.UserID,
+		WalletId: dataWallet.ID,
+		Balance:  dataWallet.Balance,
+	}
+	return result, err
+}

@@ -87,7 +87,8 @@ func main() {
 	withdrawalHistorySvc := withdrawalhistory.NewService(withdrawalHistoryRepo, userSvc, walletSvc, xenditSvc)
 
 	// Build rest Layer
-	rest.NewWithdrawalHistoryHandler(e, withdrawalHistorySvc, userSvc, walletSvc)
+	rest.NewWithdrawalHistoryHandler(e, withdrawalHistorySvc)
+	rest.NewWalletHandler(e, walletSvc)
 
 	// Start Server
 	address := os.Getenv("SERVER_ADDRESS")

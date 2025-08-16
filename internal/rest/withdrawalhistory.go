@@ -13,28 +13,16 @@ type WithdrawalHistoryService interface {
 	RequestWithdrawal(ctx context.Context, req *withdrawalhistory.CreateWithdrawalBalanceRequest) (result withdrawalhistory.CreateWithdrawalBalanceResponse, err error)
 }
 
-type UserService interface {
-}
-
-type WalletService interface {
-}
-
 type WithdrawalHistoryHandler struct {
-	Service       WithdrawalHistoryService
-	UserService   UserService
-	WalletService WalletService
+	Service WithdrawalHistoryService
 }
 
 func NewWithdrawalHistoryHandler(
 	e *echo.Echo,
 	svc WithdrawalHistoryService,
-	userSvc UserService,
-	walletSvc WalletService,
 ) {
 	handler := &WithdrawalHistoryHandler{
-		Service:       svc,
-		UserService:   userSvc,
-		WalletService: walletSvc,
+		Service: svc,
 	}
 	e.POST("/v1/wallet/withdrawal-balance", handler.RequestWithdrawal)
 }
