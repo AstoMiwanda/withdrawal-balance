@@ -32,7 +32,12 @@ $ make migrate-up
 #### Check balance
 ```bash
 # cURL
-
+curl --location --request POST 'localhost:9090/v1/wallet/balance' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "user_id": 1,
+    "wallet_id": 1
+}'
 ```
 
 #### Withdrawal balance
