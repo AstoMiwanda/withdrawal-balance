@@ -30,6 +30,7 @@ type WalletService interface {
 
 type XenditService interface {
 	PayoutRequest(ctx context.Context, request *xendit.CreatePayoutRequest) (result xendit.CreatePayoutResponse, err error)
+	CancelPayoutRequest(ctx context.Context, request *xendit.CancelPayoutRequest) (result xendit.CancelPayoutResponse, err error)
 }
 
 type Service struct {
@@ -112,10 +113,15 @@ func (s *Service) RequestWithdrawal(ctx context.Context, req *CreateWithdrawalBa
 		return result, errors.New("invalid wallet")
 	}
 
+	if dataWallet.Balance < req.Amount {
+		return result, errors.New("insufficient balance")
+	}
+
 	payloadPayoutRequest := &xendit.CreatePayoutRequest{
-		BankAccountNumber: req.BankAccountNumber,
-		BankAccountName:   req.BankAccountName,
-		Amount:            req.Amount,
+		BankAccountNumber:   req.BankAccountNumber,
+		BankAccountName:     req.BankAccountName,
+		Amount:              req.Amount,
+		ReceiptNotification: dataUser.Email,
 	}
 	payout, err := s.xenditService.PayoutRequest(ctx, payloadPayoutRequest)
 	if err != nil {
@@ -127,7 +133,8 @@ func (s *Service) RequestWithdrawal(ctx context.Context, req *CreateWithdrawalBa
 		UserID:               dataUser.ID,
 		WalletID:             dataWallet.ID,
 		Amount:               req.Amount,
-		BankAccountNumber:    req.BankAccountName,
+		BankAccountNumber:    req.BankAccountNumber,
+		BankAccountName:      req.BankAccountName,
 		BankCode:             req.BankCode,
 		Status:               payout.Status,
 		TransactionReference: payout.ReferenceId,
@@ -136,6 +143,15 @@ func (s *Service) RequestWithdrawal(ctx context.Context, req *CreateWithdrawalBa
 	err = s.repo.Store(ctx, payloadWithdrawalHistory)
 	if err != nil {
 		logrus.Error(err)
+		go func() {
+			payloadCancelPayout := &xendit.CancelPayoutRequest{
+				Id: payout.Id,
+			}
+			_, err := s.xenditService.CancelPayoutRequest(ctx, payloadCancelPayout)
+			if err != nil {
+				logrus.Error(err)
+			}
+		}()
 		return result, model.ErrInternalServerError
 	}
 

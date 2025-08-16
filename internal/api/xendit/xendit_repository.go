@@ -1,7 +1,6 @@
 package xendit
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,41 +16,87 @@ func NewRepository() *Repository {
 	return &Repository{}
 }
 
-func (r *Repository) Payout(ctx context.Context, request PayoutPayload) (*PayoutResponse, error) {
-	apiKey := os.Getenv("API_KEY_XENDIT")
-	baseURL := os.Getenv("URL_XENDIT")
-	pathURL := fmt.Sprintf("%s/v2/payouts", baseURL)
+func (r *Repository) Payout(ctx context.Context, request PayoutPayload) (result PayoutResponse, err error) {
+	apiKey := os.Getenv("XENDIT_API_KEY")
+	baseURL := os.Getenv("XENDIT_URL")
+	url := fmt.Sprintf("%s/v2/payouts", baseURL)
 
 	jsonData, err := json.Marshal(request)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, pathURL, bytes.NewBuffer(jsonData))
+	Headers := make(map[string]string)
+	Headers["Content-Type"] = "application/json"
+	Headers["Authorization"] = pkg.SetBasicAuth(apiKey, "")
+	Headers["Idempotency-key"] = request.ReferenceId
+
+	payload := pkg.Request{
+		Method:      pkg.POST,
+		URL:         url,
+		Headers:     Headers,
+		QueryParams: map[string]string{},
+		Body:        jsonData,
+	}
+
+	resp, err := pkg.SendRequestRaw(payload, "", true, "InquiryLoanInformation")
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", pkg.SetBasicAuth(apiKey, ""))
-	req.Header.Set("Idempotency-key", request.ReferenceId)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("xendit API error: %s", string(body))
+		return result, fmt.Errorf("xendit API error: %s", string(body))
 	}
 
-	var response PayoutResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return nil, err
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		return result, err
 	}
 
-	return &response, nil
+	return result, err
+}
+
+func (r *Repository) CancelPayout(ctx context.Context, request RestCancelPayoutPayload) (result RestCancelPayoutResponse, err error) {
+	apiKey := os.Getenv("XENDIT_API_KEY")
+	baseURL := os.Getenv("XENDIT_URL")
+	url := fmt.Sprintf("%s/v2/payouts/%s/cancel", baseURL, request.Id)
+
+	Headers := make(map[string]string)
+	Headers["Content-Type"] = "application/json"
+	Headers["Authorization"] = pkg.SetBasicAuth(apiKey, "")
+	Headers["Idempotency-key"] = request.ReferenceId
+
+	payload := pkg.Request{
+		Method:      pkg.POST,
+		URL:         url,
+		Headers:     Headers,
+		QueryParams: map[string]string{},
+		Body:        nil,
+	}
+
+	resp, err := pkg.SendRequestRaw(payload, "", true, "InquiryLoanInformation")
+	if err != nil {
+		return result, err
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return result, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return result, fmt.Errorf("xendit API error: %s", string(body))
+	}
+
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		return result, err
+	}
+
+	return result, err
 }

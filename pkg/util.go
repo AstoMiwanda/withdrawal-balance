@@ -2,7 +2,6 @@ package pkg
 
 import (
 	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"time"
 
@@ -24,13 +23,4 @@ func GeneratePrefixString(prefix string) (id string) {
 
 	id = fmt.Sprintf("%s-%s", prefix, UID.String())
 	return id
-}
-
-func basicAuth(username, password string) string {
-	auth := username + ":" + password
-	return base64.StdEncoding.EncodeToString([]byte(auth))
-}
-
-func SetBasicAuth(username, password string) string {
-	return "Basic " + basicAuth(username, password)
 }

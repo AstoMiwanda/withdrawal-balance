@@ -11,7 +11,8 @@ import (
 )
 
 type RepositoryInterface interface {
-	Payout(ctx context.Context, request PayoutPayload) (*PayoutResponse, error)
+	Payout(ctx context.Context, request PayoutPayload) (PayoutResponse, error)
+	CancelPayout(ctx context.Context, request RestCancelPayoutPayload) (result RestCancelPayoutResponse, err error)
 }
 
 type Service struct {
@@ -32,10 +33,12 @@ func (s *Service) PayoutRequest(ctx context.Context, request *CreatePayoutReques
 			AccountNumber:     request.BankAccountNumber,
 			AccountHolderName: request.BankAccountName,
 		},
-		Amount:              request.Amount,
-		Description:         constant.XenditWithdrawalDesc,
-		Currency:            constant.XenditCurrency,
-		ReceiptNotification: ReceiptNotification{},
+		Amount:      request.Amount,
+		Description: constant.XenditWithdrawalDesc,
+		Currency:    constant.XenditCurrency,
+		ReceiptNotification: ReceiptNotification{
+			EmailTo: []string{request.ReceiptNotification},
+		},
 		Metadata: Metadata{
 			OutletNo: constant.XenditOutletNo,
 		},
@@ -51,6 +54,26 @@ func (s *Service) PayoutRequest(ctx context.Context, request *CreatePayoutReques
 		Id:          payout.Id,
 		ReferenceId: payout.ReferenceId,
 		Status:      payout.Status,
+	}
+	return
+}
+
+func (s *Service) CancelPayoutRequest(ctx context.Context, request *CancelPayoutRequest) (result CancelPayoutResponse, err error) {
+	payoutPayload := RestCancelPayoutPayload{
+		ReferenceId: pkg.GeneratePrefixString("CANCEL-WD"),
+		Id:          request.Id,
+	}
+
+	cancelPayout, err := s.repo.CancelPayout(ctx, payoutPayload)
+	if err != nil {
+		logrus.Error(err)
+		return result, model.ErrInternalServerError
+	}
+
+	result = CancelPayoutResponse{
+		Id:          cancelPayout.Id,
+		ReferenceId: cancelPayout.ReferenceId,
+		Status:      cancelPayout.Status,
 	}
 	return
 }

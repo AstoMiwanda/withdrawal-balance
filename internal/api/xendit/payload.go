@@ -3,12 +3,23 @@ package xendit
 import "time"
 
 type CreatePayoutRequest struct {
-	BankAccountNumber string  `json:"bank_account_number"`
-	BankAccountName   string  `json:"bank_account_name"`
-	Amount            float64 `json:"amount"`
+	BankAccountNumber   string  `json:"bank_account_number"`
+	BankAccountName     string  `json:"bank_account_name"`
+	Amount              float64 `json:"amount"`
+	ReceiptNotification string  `json:"receipt_notification"`
 }
 
 type CreatePayoutResponse struct {
+	Id          string `json:"id"`
+	ReferenceId string `json:"reference_id"`
+	Status      string `json:"status"`
+}
+
+type CancelPayoutRequest struct {
+	Id string `json:"id"`
+}
+
+type CancelPayoutResponse struct {
 	Id          string `json:"id"`
 	ReferenceId string `json:"reference_id"`
 	Status      string `json:"status"`
@@ -65,5 +76,32 @@ type (
 		Metadata struct {
 			OutletNo int `json:"outlet_no"`
 		} `json:"metadata"`
+	}
+)
+
+type (
+	RestCancelPayoutPayload struct {
+		Id          string `json:"id"`
+		ReferenceId string `json:"reference_id"`
+	}
+
+	RestCancelPayoutResponse struct {
+		Id                   string    `json:"id"`
+		Amount               int       `json:"amount"`
+		ChannelCode          string    `json:"channel_code"`
+		Currency             string    `json:"currency"`
+		Description          string    `json:"description"`
+		ReferenceId          string    `json:"reference_id"`
+		Status               string    `json:"status"`
+		Created              time.Time `json:"created"`
+		Updated              time.Time `json:"updated"`
+		EstimatedArrivalTime time.Time `json:"estimated_arrival_time"`
+		BusinessId           string    `json:"business_id"`
+		ChannelProperties    struct {
+			PayoutCode          string    `json:"payout_code"`
+			RecipientGivenNames string    `json:"recipient_given_names"`
+			RecipientSurname    string    `json:"recipient_surname"`
+			ExpiresAt           time.Time `json:"expires_at"`
+		} `json:"channel_properties"`
 	}
 )

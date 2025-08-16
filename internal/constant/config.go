@@ -9,7 +9,7 @@ const (
 
 const (
 	XenditChannelCode    = "PH_GCASH"
-	XenditCurrency       = "IDR"
+	XenditCurrency       = "PHP"
 	XenditOutletNo       = 24
 	XenditWithdrawalDesc = "WITHDRAWAL_BALANCE"
 )
