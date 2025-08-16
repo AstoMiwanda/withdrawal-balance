@@ -43,7 +43,7 @@ func (m *Repository) fetch(ctx context.Context, query string, args ...interface{
 			&t.WalletID,
 			&t.Amount,
 			&t.BankAccountNumber,
-			&t.BankName,
+			&t.BankCode,
 			&t.Status,
 			&t.TransactionReference,
 			&t.CreatedAt,
@@ -77,7 +77,7 @@ func (m *Repository) GetByID(ctx context.Context, id int64) (res model.Withdrawa
 		Where(squirrel.Eq{"id": id})
 	queryStr, args, err := query.ToSql()
 
-	list, err := m.fetch(ctx, queryStr, args)
+	list, err := m.fetch(ctx, queryStr, args...)
 	if err != nil {
 		return model.WithdrawalHistory{}, err
 	}
@@ -93,8 +93,8 @@ func (m *Repository) GetByID(ctx context.Context, id int64) (res model.Withdrawa
 
 func (m *Repository) Store(ctx context.Context, data *model.WithdrawalHistory) (err error) {
 	query := squirrel.Insert("withdrawal_histories").
-		Columns("user_id", "wallet_id", "amount", "bank_account_number", "bank_name", "status", "transaction_reference", "created_at", "updated_at").
-		Values(data.UserID, data.WalletID, data.Amount, data.BankAccountNumber, data.BankName, data.Status, data.TransactionReference, time.Now(), time.Now())
+		Columns("user_id", "wallet_id", "amount", "bank_account_number", "bank_account_name", "bank_code", "status", "transaction_reference", "payout_id", "created_at", "updated_at").
+		Values(data.UserID, data.WalletID, data.Amount, data.BankAccountNumber, data.BankAccountName, data.BankCode, data.Status, data.TransactionReference, data.PayoutId, time.Now(), time.Now())
 	queryStr, args, err := query.ToSql()
 	if err != nil {
 		return err
@@ -153,7 +153,9 @@ func (m *Repository) Update(ctx context.Context, data *model.WithdrawalHistory) 
 		Set("wallet_id", data.WalletID).
 		Set("amount", data.Amount).
 		Set("bank_account_number", data.BankAccountNumber).
-		Set("bank_name", data.BankName).
+		Set("bank_account_name", data.BankAccountName).
+		Set("bank_code", data.BankCode).
+		Set("payout_id", data.PayoutId).
 		Set("status", data.Status).
 		Set("transaction_reference", data.TransactionReference).
 		Set("updated_at", time.Now()).

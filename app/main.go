@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"time"
+	"withdrawal-balance/internal/api/xendit"
 	"withdrawal-balance/internal/domain/user"
 	"withdrawal-balance/internal/domain/wallet"
 	"withdrawal-balance/internal/domain/withdrawalhistory"
@@ -77,14 +78,17 @@ func main() {
 	userRepo := user.NewRepository(dbConn)
 	walletRepo := wallet.NewRepository(dbConn)
 	withdrawalHistoryRepo := withdrawalhistory.NewRepository(dbConn)
+	xenditRepo := xendit.NewRepository()
 
 	// Build service Layer
 	userSvc := user.NewService(userRepo)
 	walletSvc := wallet.NewService(walletRepo)
-	withdrawalHistorySvc := withdrawalhistory.NewService(withdrawalHistoryRepo)
+	xenditSvc := xendit.NewService(xenditRepo)
+	withdrawalHistorySvc := withdrawalhistory.NewService(withdrawalHistoryRepo, userSvc, walletSvc, xenditSvc)
 
 	// Build rest Layer
-	rest.NewWithdrawalHistoryHandler(e, withdrawalHistorySvc, userSvc, walletSvc)
+	rest.NewWithdrawalHistoryHandler(e, withdrawalHistorySvc)
+	rest.NewWalletHandler(e, walletSvc)
 
 	// Start Server
 	address := os.Getenv("SERVER_ADDRESS")

@@ -40,6 +40,9 @@ func (m *Repository) fetch(ctx context.Context, query string, args ...interface{
 			&t.ID,
 			&t.Name,
 			&t.Phone,
+			&t.Email,
+			&t.CreatedAt,
+			&t.UpdatedAt,
 		)
 
 		if err != nil {
@@ -53,7 +56,7 @@ func (m *Repository) fetch(ctx context.Context, query string, args ...interface{
 }
 
 func (m *Repository) Fetch(ctx context.Context) (res []model.User, err error) {
-	query := squirrel.Select(`user_id, name, phone`).
+	query := squirrel.Select(`*`).
 		From(`users`)
 	queryStr, args, err := query.ToSql()
 	res, err = m.fetch(ctx, queryStr, args...)
@@ -64,12 +67,12 @@ func (m *Repository) Fetch(ctx context.Context) (res []model.User, err error) {
 	return
 }
 func (m *Repository) GetByID(ctx context.Context, id int64) (res model.User, err error) {
-	query := squirrel.Select(`user_id, name, phone`).
+	query := squirrel.Select(`*`).
 		From(`users`).
-		Where(squirrel.Eq{"user_id": id})
+		Where(squirrel.Eq{"id": id})
 	queryStr, args, err := query.ToSql()
 
-	list, err := m.fetch(ctx, queryStr, args)
+	list, err := m.fetch(ctx, queryStr, args...)
 	if err != nil {
 		return model.User{}, err
 	}
@@ -85,8 +88,8 @@ func (m *Repository) GetByID(ctx context.Context, id int64) (res model.User, err
 
 func (m *Repository) Store(ctx context.Context, a *model.User) (err error) {
 	query := squirrel.Insert("users").
-		Columns("name", "phone").
-		Values(a.Name, a.Phone)
+		Columns("name", "phone", "email").
+		Values(a.Name, a.Phone, a.Email)
 	queryStr, args, err := query.ToSql()
 	if err != nil {
 		return err
@@ -111,7 +114,7 @@ func (m *Repository) Store(ctx context.Context, a *model.User) (err error) {
 
 func (m *Repository) Delete(ctx context.Context, id int64) (err error) {
 	query := squirrel.Delete("users").
-		Where(squirrel.Eq{"user_id": id})
+		Where(squirrel.Eq{"id": id})
 	queryStr, args, err := query.ToSql()
 	if err != nil {
 		return
@@ -143,7 +146,8 @@ func (m *Repository) Update(ctx context.Context, ar *model.User) (err error) {
 	query := squirrel.Update("users").
 		Set("name", ar.Name).
 		Set("phone", ar.Phone).
-		Where(squirrel.Eq{"user_id": ar.ID})
+		Set("email", ar.Email).
+		Where(squirrel.Eq{"id": ar.ID})
 	queryStr, args, err := query.ToSql()
 	if err != nil {
 		return

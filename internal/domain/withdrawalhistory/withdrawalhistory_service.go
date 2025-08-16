@@ -2,10 +2,13 @@ package withdrawalhistory
 
 import (
 	"context"
-	"net/http"
+	"errors"
+	"withdrawal-balance/internal/api/xendit"
+	"withdrawal-balance/internal/constant"
+	"withdrawal-balance/internal/domain/wallet"
 	"withdrawal-balance/model"
 
-	"github.com/labstack/echo/v4"
+	"github.com/sirupsen/logrus"
 )
 
 type RepositoryInterface interface {
@@ -16,18 +19,43 @@ type RepositoryInterface interface {
 	Delete(ctx context.Context, id int64) error
 }
 
-type Service struct {
-	withdrawalHistoryRepo RepositoryInterface
+type UserService interface {
+	GetByID(ctx context.Context, id int64) (model.User, error)
 }
 
-func NewService(a RepositoryInterface) *Service {
+type WalletService interface {
+	GetByID(ctx context.Context, id int64) (res model.Wallet, err error)
+	UpdateBalance(ctx context.Context, req *wallet.UpdateBalanceRequest) (err error)
+}
+
+type XenditService interface {
+	PayoutRequest(ctx context.Context, request *xendit.CreatePayoutRequest) (result xendit.CreatePayoutResponse, err error)
+	CancelPayoutRequest(ctx context.Context, request *xendit.CancelPayoutRequest) (result xendit.CancelPayoutResponse, err error)
+}
+
+type Service struct {
+	repo          RepositoryInterface
+	userService   UserService
+	walletService WalletService
+	xenditService XenditService
+}
+
+func NewService(
+	repo RepositoryInterface,
+	userService UserService,
+	walletService WalletService,
+	xenditService XenditService,
+) *Service {
 	return &Service{
-		withdrawalHistoryRepo: a,
+		repo:          repo,
+		userService:   userService,
+		walletService: walletService,
+		xenditService: xenditService,
 	}
 }
 
 func (s *Service) Fetch(ctx context.Context) (res []model.WithdrawalHistory, err error) {
-	res, err = s.withdrawalHistoryRepo.Fetch(ctx)
+	res, err = s.repo.Fetch(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +64,7 @@ func (s *Service) Fetch(ctx context.Context) (res []model.WithdrawalHistory, err
 }
 
 func (s *Service) GetByID(ctx context.Context, id int64) (res model.WithdrawalHistory, err error) {
-	res, err = s.withdrawalHistoryRepo.GetByID(ctx, id)
+	res, err = s.repo.GetByID(ctx, id)
 	if err != nil {
 		return
 	}
@@ -45,25 +73,108 @@ func (s *Service) GetByID(ctx context.Context, id int64) (res model.WithdrawalHi
 }
 
 func (s *Service) Update(ctx context.Context, req *model.WithdrawalHistory) (err error) {
-	return s.withdrawalHistoryRepo.Update(ctx, req)
+	return s.repo.Update(ctx, req)
 }
 
 func (s *Service) Store(ctx context.Context, req *model.WithdrawalHistory) (err error) {
-	err = s.withdrawalHistoryRepo.Store(ctx, req)
+	err = s.repo.Store(ctx, req)
 	return
 }
 
 func (s *Service) Delete(ctx context.Context, id int64) (err error) {
-	existedWithdrawalHistory, err := s.withdrawalHistoryRepo.GetByID(ctx, id)
+	existedWithdrawalHistory, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return
 	}
 	if existedWithdrawalHistory == (model.WithdrawalHistory{}) {
 		return model.ErrNotFound
 	}
-	return s.withdrawalHistoryRepo.Delete(ctx, id)
+	return s.repo.Delete(ctx, id)
 }
 
-func (s *Service) RequestWithdrawal(c echo.Context) (err error) {
-	return c.JSON(http.StatusOK, model.ErrInternalServerError)
+func (s *Service) RequestWithdrawal(ctx context.Context, req *CreateWithdrawalBalanceRequest) (result CreateWithdrawalBalanceResponse, err error) {
+	if req == nil {
+		return result, model.ErrBadParamInput
+	}
+
+	dataUser, err := s.userService.GetByID(ctx, req.UserID)
+	if err != nil {
+		logrus.Error(err)
+		return result, errors.New("user not found")
+	}
+
+	dataWallet, err := s.walletService.GetByID(ctx, req.WalletID)
+	if err != nil {
+		logrus.Error(err)
+		return result, errors.New("wallet not found")
+	}
+
+	if dataWallet.UserID != dataUser.ID {
+		return result, errors.New("invalid wallet")
+	}
+
+	if dataWallet.Balance < req.Amount {
+		return result, errors.New("insufficient balance")
+	}
+
+	payloadPayoutRequest := &xendit.CreatePayoutRequest{
+		BankAccountNumber:   req.BankAccountNumber,
+		BankAccountName:     req.BankAccountName,
+		Amount:              req.Amount,
+		ReceiptNotification: dataUser.Email,
+	}
+	payout, err := s.xenditService.PayoutRequest(ctx, payloadPayoutRequest)
+	if err != nil {
+		logrus.Error(err)
+		return result, model.ErrInternalServerError
+	}
+
+	payloadWithdrawalHistory := &model.WithdrawalHistory{
+		UserID:               dataUser.ID,
+		WalletID:             dataWallet.ID,
+		Amount:               req.Amount,
+		BankAccountNumber:    req.BankAccountNumber,
+		BankAccountName:      req.BankAccountName,
+		BankCode:             req.BankCode,
+		Status:               payout.Status,
+		TransactionReference: payout.ReferenceId,
+		PayoutId:             payout.Id,
+	}
+	err = s.repo.Store(ctx, payloadWithdrawalHistory)
+	if err != nil {
+		logrus.Error(err)
+		go func() {
+			payloadCancelPayout := &xendit.CancelPayoutRequest{
+				Id: payout.Id,
+			}
+			_, err := s.xenditService.CancelPayoutRequest(ctx, payloadCancelPayout)
+			if err != nil {
+				logrus.Error(err)
+			}
+		}()
+		return result, model.ErrInternalServerError
+	}
+
+	payloadUpdateBalance := &wallet.UpdateBalanceRequest{
+		WalletID: dataWallet.ID,
+		UserID:   dataWallet.UserID,
+		Amount:   req.Amount,
+		Type:     constant.WithdrawTransactionTypeWallet,
+	}
+	err = s.walletService.UpdateBalance(ctx, payloadUpdateBalance)
+	if err != nil {
+		logrus.Error(err)
+		return result, model.ErrInternalServerError
+	}
+
+	result = CreateWithdrawalBalanceResponse{
+		ID:              payout.Id,
+		UserID:          dataWallet.UserID,
+		WalletID:        dataWallet.ID,
+		Amount:          req.Amount,
+		Status:          payout.Status,
+		ReferenceNumber: payout.ReferenceId,
+	}
+
+	return result, nil
 }
